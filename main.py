@@ -64,41 +64,9 @@ df['zips'] = df['zips'].map(non_seattle_zip)
 df = df[(df['zips'] != 99999) & (df['zips'] != 77777)]
 
 
-desert_zips_repeats = [98126,
-                       98106,
-                       98168,
-                       98106,
-                       98108,
-                       98146,
-                       98166,
-                       98146,
-                       98188,
-                       98138,
-                       98168,
-                       98178,
-                       98057,
-                       98178,
-                       98057,
-                       98057,
-                       98058,
-                       98055,
-                       98055,
-                       98058,
-                       98058,
-                       98188,
-                       98198,
-                       98188,
-                       98198,
-                       98032,
-                       98198,
-                       98002,
-                       98001,
-                       98047,
-                       98047,
-                       98001,
-                       98022]
+zips = [98103, 98115, 98166, 98146, 98188, 98138, 98168, 98178, 98057, 98055, 98058, 98198, 98002, 98001, 98047, 98047]
 
-desert_zips = list(set(desert_zips_repeats))
+desert_zips = list(set(zips))
 
 df['desert'] = df['zips'].map(lambda x: True if x in desert_zips else False)
 
@@ -155,11 +123,9 @@ df['_veglt1a'] = df['_veglt1a'].map({'One or more per day': 1, 'Less than once p
 
 df['fruit_everyday'] = (df['_frtlt1'] == 1) | (df['_frtlt1a'] == 1)
 
-df['fruit_everyday'] = (df['fruit_day'] > 0) & (df['fruit_sum'] < 16)
-
 df['veg_everyday'] = (df['_veglt1'] == 1) | (df['_veglt1a'] == 1)
 
-df['veg_everyday'] = (df['veg_day'] > 0) & (df['veg_sum'] < 23)
+df = df[((df['_vegetex'] == 'Included') | (df['_vegete1'] == 'Included')) & ((df['_vegetex'] == 'Included') | (df['_vegete1'] == 'Included'))]
 
 
 def per_week(x):
@@ -190,13 +156,17 @@ def per_month_17(x):
         return False
 
 
-df['veg_every_week'] = (df['vegetab1'].map(per_week) | df['vegetab2'].map(per_week_17))
+df['veg_week'] = df['vegetab1'].map(per_week) | df['vegetab2'].map(per_week_17)
+df['veg_every_week'] = (df['veg_week'] == 1) & (df['veg_everyday'] == 0)
 
-df['fruit_every_week'] = (df['fruit1'].map(per_week) | df['fruit2'].map(per_week_17))
+df['fruit_week'] = df['fruit1'].map(per_week) | df['fruit2'].map(per_week_17)
+df['fruit_every_week'] = (df['fruit_week'] == 1) & (df['fruit_everyday'] == 0)
 
-df['veg_every_month'] = (df['vegetab1'].map(per_month) | df['vegetab2'].map(per_month_17))
+df['veg_month'] = df['vegetab1'].map(per_month) | df['vegetab2'].map(per_month_17)
+df['veg_every_month'] = ((df['veg_month'] == 1) & (df['veg_week'] == 0) & (df['veg_everyday'] == 0))
 
-df['fruit_every_month'] = (df['fruit1'].map(per_month) | df['fruit2'].map(per_month_17))
+df['fruit_month'] = df['fruit1'].map(per_month) | df['fruit2'].map(per_month_17)
+df['fruit_every_month'] = ((df['fruit_month'] == 1) & (df['fruit_everyday'] == 0) & (df['fruit_week'] == 0))
 
 final_colunns = ['year', '_ageg5yr', '_prace1', 'income2', 'adults', 'children', 'total_household', 'zips', 'desert',
                  'unemployed', 'active', 'overweight', 'pre-diab', 'diabetic', 'good-health', 'fruit_everyday',
@@ -204,9 +174,9 @@ final_colunns = ['year', '_ageg5yr', '_prace1', 'income2', 'adults', 'children',
 
 df = df[final_colunns]
 
-final_names = ['Year', 'Age', 'Race', 'Income', 'Adults', 'Children', 'Total_household', 'Zip-code', 'Food-Desert',
-               'Unemployed', 'Active', 'Overweight', 'Pre-Diabetic', 'Diabetic', 'Good-health', 'Fruit_everyday',
-               'Veg_everyday', 'Fruit_every_week', 'Veg_every_week', 'Fruit_every_month', 'Veg_every_month']
+final_names = ['Year', 'Age', 'Race', 'Income', 'Adults', 'Children', 'Household Size', 'Zip-code', 'In Food Desert',
+               'Unemployed', 'Active', 'Overweight', 'Pre-Diabetic', 'Diabetic', 'Good-health', 'Fruit Daily',
+               'Veg Daily', 'Fruit Weekly', 'Veg Weekly', 'Fruit Monthly', 'Veg Monthly']
 
 df.columns = final_names
 
@@ -218,20 +188,4 @@ df15 = df[df['Year'] == 2015]
 
 df17 = df[df['Year'] == 2017]
 
-# df11 = df11.drop(columns_2017 + drop_from_both + drop_from_2017, axis=1)
-# df13 = df13.drop(columns_2017 + drop_from_both + drop_from_2017, axis=1)
-# df15 = df15.drop(columns_2017 + drop_from_both + drop_from_2017, axis=1)
-# df17 = df17.drop(drop_from_2017 + drop_from_both + columns_2017, axis=1)
-
-
-df11_oasis = df11[df11['Food-Desert'] == 0]
-df13_oasis = df13[df13['Food-Desert'] == 0]
-df15_oasis = df15[df15['Food-Desert'] == 0]
-df17_oasis = df17[df17['Food-Desert'] == 0]
-
-df11_desert = df11[df11['Food-Desert'] == 1]
-df13_desert = df13[df13['Food-Desert'] == 1]
-df15_desert = df15[df15['Food-Desert'] == 1]
-df17_desert = df17[df17['Food-Desert'] == 1]
-
-print(df15_desert.head())
+print(df15.head())
