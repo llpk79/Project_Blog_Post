@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 pd.set_option('display.max_columns', 500)
 
 
-columns = ['YEAR', 'NUMADULT', 'HHADULT', '_AGEG5YR', '_PRACE1', 'CHILDREN', '_CHLDCNT', 'EMPLOY', 'EMPLOY1',
+columns = ['YEAR', 'NUMADULT', 'HHADULT', '_AGEG5YR', '_RACE', 'CHILDREN', '_CHLDCNT', 'EMPLOY', 'EMPLOY1',
            'INCOME2', '_BMI5CAT', 'GENHLTH', 'PREDIAB1', 'DIABETE3', '_PAINDEX', '_PAINDX1']
 
 drop_from_both = [column.lower() for column in ['NUMADULT', 'HHADULT', '_CHLDCNT', 'EMPLOY', 'EMPLOY1', '_BMI5CAT',
@@ -43,7 +43,15 @@ df['children'] = df['children'].map(lambda x: 0 if x in [88, 99] else x)
 
 df['total_household'] = df['adults'] + df['children']
 
+df['_race'] = df['_race'].map({'White NH': 'White', 'Hispanic': 'Hisp.', 'Asian NH': 'Asian', 'Black NH': 'Black',
+                             'DK/Refused': 'Don\'t\nKnow', 'AIAN NH': 'AIAN', 'Other NH': 'Other',
+                             'NHOPI NH': 'NHOPI'})
+
 df['unemployed'] = df['employ'].str.contains('Unemployed') | df['employ1'].str.contains('unemployed')
+
+df['income2'].replace('Don\'t Know', 'Don\'t\nKnow', inplace=True)
+
+df['over75'] = df['income2'] == '$75+'
 
 bmi_dict = {'Over': True, 'Obese': True, 'Normal': False, 'Under': False}
 df['overweight'] = df['_bmi5cat'].map(bmi_dict)
@@ -128,6 +136,13 @@ df['veg_everyday'] = (df['_veglt1'] == 1) | (df['_veglt1a'] == 1)
 df = df[((df['_vegetex'] == 'Included') | (df['_vegete1'] == 'Included')) & ((df['_vegetex'] == 'Included') | (df['_vegete1'] == 'Included'))]
 
 
+def nothing(x):
+    if re.match(r'^555$', str(x)):
+        return True
+    else:
+        return False
+
+
 def per_week(x):
     if re.match(r'^2\d\d[.]0$', str(x)):
         return True
@@ -156,6 +171,10 @@ def per_month_17(x):
         return False
 
 
+df['no_veg'] = df['vegetab1'].map(nothing) | df['vegetab2'].map(nothing)
+
+df['no_fruit'] = df['fruit1'].map(nothing) | df['fruit2'].map(nothing)
+
 df['veg_week'] = df['vegetab1'].map(per_week) | df['vegetab2'].map(per_week_17)
 df['veg_every_week'] = (df['veg_week'] == 1) & (df['veg_everyday'] == 0)
 
@@ -168,15 +187,17 @@ df['veg_every_month'] = ((df['veg_month'] == 1) & (df['veg_week'] == 0) & (df['v
 df['fruit_month'] = df['fruit1'].map(per_month) | df['fruit2'].map(per_month_17)
 df['fruit_every_month'] = ((df['fruit_month'] == 1) & (df['fruit_everyday'] == 0) & (df['fruit_week'] == 0))
 
-final_colunns = ['year', '_ageg5yr', '_prace1', 'income2', 'adults', 'children', 'total_household', 'zips', 'desert',
-                 'unemployed', 'active', 'overweight', 'pre-diab', 'diabetic', 'good-health', 'fruit_everyday',
-                 'veg_everyday', 'fruit_every_week', 'veg_every_week', 'fruit_every_month', 'veg_every_month']
+final_colunns = ['year', '_ageg5yr', '_race', 'income2', 'over75', 'adults', 'children', 'total_household', 'zips',
+                 'desert', 'unemployed', 'active', 'overweight', 'pre-diab', 'diabetic', 'good-health', 'no_veg',
+                 'no_fruit', 'fruit_everyday', 'veg_everyday', 'fruit_every_week', 'veg_every_week',
+                 'fruit_every_month', 'veg_every_month']
 
 df = df[final_colunns]
 
-final_names = ['Year', 'Age', 'Race', 'Income', 'Adults', 'Children', 'Household Size', 'Zip-code', 'In Food Desert',
-               'Unemployed', 'Active', 'Overweight', 'Pre-Diabetic', 'Diabetic', 'Good-health', 'Fruit Daily',
-               'Veg Daily', 'Fruit Weekly', 'Veg Weekly', 'Fruit Monthly', 'Veg Monthly']
+final_names = ['Year', 'Age', 'Race', 'Income', 'Over Median Income', 'Adults', 'Children', 'Household Size', 'Zip-code',
+               'In Food Desert', 'Unemployed', 'Active', 'Overweight', 'Pre-Diabetic', 'Diabetic', 'Good-health',
+               'No Veg', 'No Fruit', 'Fruit Daily', 'Veg Daily', 'Fruit Weekly', 'Veg Weekly', 'Fruit Monthly',
+               'Veg Monthly']
 
 df.columns = final_names
 
