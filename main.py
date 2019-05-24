@@ -3,6 +3,8 @@ import numpy as np
 import seaborn as sns
 import re
 import matplotlib.pyplot as plt
+from scipy.stats import ttest_ind as ttest
+
 
 pd.set_option('display.max_columns', 500)
 
@@ -208,5 +210,3 @@ df13 = df[df['Year'] == 2013]
 df15 = df[df['Year'] == 2015]
 
 df17 = df[df['Year'] == 2017]
-
-print(df15.head())
