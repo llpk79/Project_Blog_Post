@@ -5,6 +5,7 @@ import seaborn as sns
 import re
 import matplotlib.pyplot as plt
 from scipy.stats import ttest_ind as ttest
+from sklearn.utils import shuffle
 
 """Script for Cleaning data from 
 https://www.doh.wa.gov/DataandStatisticalReports/DataSystems/BehavioralRiskFactorSurveillanceSystemBRFSS
@@ -21,19 +22,18 @@ pd.set_option('display.max_columns', 500)
 
 # Columns copied from the code book. In the file all column names are lower case.
 
-all_columns =[column.lower() for column in ['FRUITJU1', 'FRUIT1', 'FVGREEN', 'VEGETAB1', 'FTJUDA1_', 'FRUTDA1_',
-                                            'BEANDAY_', 'GRENDAY_', 'ORNGDAY_', 'VEGEDA1_', '_MISFRTN', '_MISVEGN',
-                                            '_FRTRESP', '_VEGRESP', '_FRUTSUM', '_VEGESUM', '_FRTLT1', '_VEGLT1',
-                                            '_FRUITEX', '_VEGETEX', 'ZIPCODE', 'FRUITJU2', 'FRUIT2', 'FVGREEN1',
-                                            'VEGETAB2', 'FRENCHF1', 'POTATOE1', 'FTJUDA2_', 'FRUTDA2_', 'GRENDA1_',
-                                            'VEGEDA2_', 'FRNCHDA_', 'POTADA1_', '_MISFRT1', '_MISVEG1', '_FRTRES1',
-                                            '_VEGRES1', '_FRUTSU1', '_VEGESU1', '_FRTLT1a', '_VEGLT1a', '_VEGETE1',
-                                            'ZIPCODE1', '_FRUITE1', 'YEAR', 'NUMADULT', 'HHADULT', '_AGEG5YR', '_RACE',
-                                            'CHILDREN', '_CHLDCNT', 'EMPLOY', 'EMPLOY1', 'INCOME2', '_BMI5CAT',
-                                            'GENHLTH', 'PREDIAB1', 'DIABETE3', '_PAINDEX', '_PAINDX1']]
+# all_columns =[column.lower() for column in ['FRUITJU1','FRUIT1', 'FVGREEN', 'VEGETAB1', 'FTJUDA1_', 'FRUTDA1_', 'BEANDAY_', 'GRENDAY_', 'ORNGDAY_', 'VEGEDA1_', '_MISFRTN', '_MISVEGN',
+#                                             '_FRTRESP', '_VEGRESP', '_FRUTSUM', '_VEGESUM', '_FRTLT1', '_VEGLT1',
+#                                             '_FRUITEX', '_VEGETEX', 'ZIPCODE', 'FRUITJU2', 'FRUIT2', 'FVGREEN1',
+#                                             'VEGETAB2', 'FRENCHF1', 'POTATOE1', 'FTJUDA2_', 'FRUTDA2_', 'GRENDA1_',
+#                                             'VEGEDA2_', 'FRNCHDA_', 'POTADA1_', '_MISFRT1', '_MISVEG1', '_FRTRES1',
+#                                             '_VEGRES1', '_FRUTSU1', '_VEGESU1', '_FRTLT1a', '_VEGLT1a', '_VEGETE1',
+#                                             'ZIPCODE1', '_FRUITE1', 'YEAR', 'NUMADULT', 'HHADULT', '_AGEG5YR', '_RACE',
+#                                             'CHILDREN', '_CHLDCNT', 'EMPLOY', 'EMPLOY1', 'INCOME2', '_BMI5CAT',
+#                                             'GENHLTH', 'PREDIAB1', 'DIABETE3', '_PAINDEX', '_PAINDX1']]
 
 df = pd.read_stata("C:\\Users\Paul\PycharmProjects\BlogPost\data\WA_BRFSS_11to17_B.dta",
-                   columns=all_columns, convert_missing=False)
+                   convert_missing=False)
 
 # 77 and 99 are coded as unknown and refused respectively. I'm assuming someone filled out the survey and so score a 1.
 df['numadult'] = df['numadult'].map(lambda x: 1 if x in [77, 99] else x)
@@ -41,6 +41,8 @@ df['hhadult'] = df['hhadult'].map(lambda x: 1 if x in [77, 99] else x)
 
 df['numadult'] = df['numadult'].fillna(1)
 df['hhadult'] = df['hhadult'].fillna(1)
+
+df['Ownership'] = df['renthom1']
 
 # In case of duplicate entries for the same year, take the larger.
 df['adults'] = np.maximum(df['hhadult'], df['numadult'])
@@ -58,7 +60,11 @@ df['_race'] = df['_race'].map({'White NH': 'White', 'Hispanic': 'Hisp.', 'Asian 
                              'NHOPI NH': 'NHOPI'})
 
 # Simplify into boolean column.
-df['unemployed'] = df['employ'].str.contains('Unemployed') | df['employ1'].str.contains('unemployed')
+df['employ'] = df['employ'].cat.add_categories('Unknown')
+df['employ'] = df['employ'].fillna('Unknown')
+df['employ1'] = df['employ1'].cat.add_categories('Unknown')
+df['employ1'] = df['employ1'].fillna('Unknown')
+df['employment'] = pd.concat([df['employ'], df['employ1']], join='inner', ignore_index=True, sort=False)
 
 # Rename value for nicer plotting.
 df['income2'].replace('Don\'t Know', 'Don\'t\nKnow', inplace=True)
@@ -67,8 +73,8 @@ df['income2'].replace('Don\'t Know', 'Don\'t\nKnow', inplace=True)
 df['over75'] = df['income2'] == '$75+'
 
 # Simplify to boolean.
-bmi_dict = {'Over': True, 'Obese': True, 'Normal': False, 'Under': False}
-df['overweight'] = df['_bmi5cat'].map(bmi_dict)
+# bmi_dict = {'Over': True, 'Obese': True, 'Normal': False, 'Under': False}
+df['overweight'] = df['_bmi5cat']  #.map(bmi_dict)
 
 # Clean zipcode column.
 df['zips'] = df['zipcode'] + df['zipcode1']
@@ -100,20 +106,37 @@ desert_zips = list(set(zips))
 df['desert'] = df['zips'].map(lambda x: True if x in desert_zips else False)
 
 # Simplify to boolean.
-health_dict = {'Very Good': True, 'Good': True, 'Excellent': True, 'Fair': False, 'Poor': False, 'DK': False, 'Missing': True}
-df['good-health'] = df['genhlth'].map(health_dict)
+# health_dict = {'Very Good': True, 'Good': True, 'Excellent': True, 'Fair': False, 'Poor': False, 'DK': False, 'Missing': True}
+df['good-health'] = df['genhlth']  #.map(health_dict)
+
+df['Sleep_hrs'] = df['sleptim1'].map(lambda x: np.nan if x in [99, 77] else x)
+
+df['Insurance'] = df['_hcvu651']
+
+df['Dr_too_much'] = df['medcost']
+
+df['Recent_Dr_visit'] = df['checkup1']
+
+df['Smoker'] = df['_smoker3']
+
+df['alcday5'] = df['alcday5'].map({888: 'other', 999: 'other'}).astype(str)
+df['Alcohol'] = df['alcday5']
 
 # Simplify to boolean.
 df['prediab1'] = df['prediab1'].fillna('DK')
-df['pre-diab'] = df['prediab1'].map(lambda x: True if x == 'Yes' else False)
+df['pre_diab1'] = df['prediab1'].map(lambda x: True if x == 'Yes' else False)
+df['pre_diab2'] = df['diabete3'].map(lambda x: True if x == 'Borderline/Pre-Diabetes' else False)
+df['pre_diab'] = (df['pre_diab1'] == True) | (df['pre_diab2'] == True)
 
-df['diabetic'] = df['diabete3'].map(lambda x: True if x in ['Yes', 'Borderline/Pre-Diabetes'] else False)
+df['diabetic'] = df['diabete3'].map(lambda x: True if x  == 'Yes' else False)
 
-# Simplify to boolean.
-df['_paindex'] = df['_paindex'].map(lambda x: True if x == 'Meets Aerobic Recs' else False)
-df['_paindx1'] = df['_paindx1'].map(lambda x: True if x == 'Meets Aerobic Recs' else False)
+# Add active column.
+df['_paindex'] = df['_paindex'].cat.add_categories('Unknown')
+df['_paindex'] = df[['_paindex']].fillna('Unknown')
+df['_paindx1'] = df['_paindx1'].cat.add_categories('Unknown')
+df['_paindx1'] = df[['_paindx1']].fillna('Unknown')
 
-df['active'] = ((df['_paindex'] is True) | df['_paindx1'] is True)
+df['active'] = pd.concat([df['_paindex'], df['_paindx1']], join='inner', ignore_index=True, sort=False)
 
 # Clean vegetable and fruit data to reflex frequency of consumption by day, week and month.
 
@@ -228,26 +251,84 @@ df['fruit_month'] = df['fruit1'].map(per_month) | df['fruit2'].map(per_month_17)
 df['fruit_every_month'] = ((df['fruit_month'] == 1) & (df['fruit_everyday'] == 0) & (df['fruit_week'] == 0))
 
 # The columns we want to keep in some sort of order.
-final_colunns = ['year', '_ageg5yr', '_race', 'income2', 'over75', 'adults', 'children', 'total_household', 'zips',
-                 'desert', 'unemployed', 'active', 'overweight', 'pre-diab', 'diabetic', 'good-health', 'no_veg',
-                 'no_fruit', 'fruit_everyday', 'veg_everyday', 'fruit_every_week', 'veg_every_week',
-                 'fruit_every_month', 'veg_every_month']
+final_colunns = [
+#                  'year',
+                 '_ageg5yr',
+                 '_race',
+                 'income2',
+                 'over75',
+                 'Ownership',
+#                  'adults',
+#                  'children',
+                 'total_household',
+                 'zips',
+                 'desert',
+                 'employment',
+                 'active',
+                 'overweight',
+                 'pre_diab',
+                 'diabetic',
+                 'good-health',
+                 'no_veg',
+                 'no_fruit', 
+                 'fruit_everyday',
+                 'veg_everyday',
+                 'fruit_every_week',
+                 'veg_every_week',
+                 'fruit_every_month',
+                 'veg_every_month',
+                 'Sleep_hrs',
+                 'Insurance',
+                 'Dr_too_much',
+                 'Recent_Dr_visit',
+                 'Smoker',
+                 'Alcohol']
 
 df = df[final_colunns]
 
 # Nicer names for plotting.
-final_names = ['Year', 'Age', 'Race', 'Income', 'Over Median Income', 'Adults', 'Children', 'Household Size',
-               'Zip-code', 'In Food Desert', 'Unemployed', 'Active', 'Overweight', 'Pre-Diabetic', 'Diabetic',
-               'Good-health', 'No Veg', 'No Fruit', 'Fruit Daily', 'Veg Daily', 'Fruit Weekly', 'Veg Weekly',
-               'Fruit Monthly', 'Veg Monthly']
+final_names = [
+#                'Year',
+               'Age',
+               'Race',
+               'Income',
+               'Over Median Income',
+               'Ownership',
+#                'Adults',
+#                'Children',
+               'Household Size',
+               'Zip-code',
+               'In Food Desert',
+               'Employment',
+               'Active',
+               'Overweight',
+               'Pre-Diabetic',
+               'Diabetic',
+               'Good-health',
+               'No Veg',
+               'No Fruit',
+               'Fruit Daily',
+               'Veg Daily',
+               'Fruit Weekly',
+               'Veg Weekly',
+               'Fruit Monthly', 
+               'Veg Monthly',
+               'Sleep_hrs',
+               'Insurance',
+               'Dr_too_much',
+               'Recent_Dr_visit',
+               'Smoker',
+               'Alcohol']
 
 df.columns = final_names
-
+df = df[df['Diabetic'] == False]
+df = df.drop(columns='Diabetic')
+df = shuffle(df)
 # Finally, separate into different years.
-df11 = df[df['Year'] == 2011]
+# df11 = df[df['Year'] == 2011]
 
-df13 = df[df['Year'] == 2013]
+# df13 = df[df['Year'] == 2013]
 
-df15 = df[df['Year'] == 2015]
+# df15 = df[df['Year'] == 2015]
 
-df17 = df[df['Year'] == 2017]
+# df17 = df[df['Year'] == 2017]
